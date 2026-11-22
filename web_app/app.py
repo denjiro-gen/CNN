@@ -229,16 +229,16 @@ def detect_specimen_boxes(pil_img):
 
 class MosquitoClassifierHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
-        pass   # Suppress noisy access logs
+        print(f"[HTTP] {self.address_string()} - {format%args}")
 
     def end_headers(self):
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
         super().end_headers()
 
     def do_OPTIONS(self):
-        self.send_response(200)
+        self.send_response(204)
         self.end_headers()
 
     # ── GET ──────────────────────────────────────────────────────────────────
