@@ -524,8 +524,8 @@
   <!-- Main JavaScript Controller -->
   <script>
     // Configurable API Base URL for Vercel -> Railway deployment
-    // If empty or '/', uses relative path (same domain). Otherwise, point to Railway URL.
-    const API_BASE = window.REACT_APP_API_URL || window.API_BASE_URL || localStorage.getItem('API_BASE_URL') || '';
+    // Pre-configured with active Railway backend endpoint:
+    const API_BASE = window.REACT_APP_API_URL || window.API_BASE_URL || localStorage.getItem('API_BASE_URL') || 'https://cnn-production-58e6236d.up.railway.app';
 
     // System State
     let currentMode = 'camera';
