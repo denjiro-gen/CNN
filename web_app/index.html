@@ -595,14 +595,46 @@
 
     // Camera Lifecycle
     async function startCamera() {
+      // Check browser security restriction on navigator.mediaDevices
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert(
+          "Camera Access Blocked by Browser Security:\n\n" +
+          "WebRTC getUserMedia requires HTTPS or localhost.\n" +
+          "If accessing your Raspberry Pi via HTTP IP address (e.g. http://192.168.x.x:5000), " +
+          "please open the deployed Vercel HTTPS link (https://cnn-three.vercel.app) " +
+          "or enable 'Insecure origins treated as secure' in chrome://flags."
+        );
+        return;
+      }
+
       try {
         const video = document.getElementById('webcam');
-        cameraStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'environment' },
+        
+        // Flexible constraints for Pi camera / USB camera
+        const constraints = {
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 }
+          },
           audio: false
-        });
+        };
+
+        try {
+          cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (firstErr) {
+          // Fallback to basic video constraint without size requirements
+          console.warn("Retrying with fallback video constraints...", firstErr);
+          cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        }
+
         video.srcObject = cameraStream;
-        await video.play();
+        
+        // Wait for video metadata to load before playing
+        await new Promise((resolve) => {
+          video.onloadedmetadata = () => {
+            video.play().then(resolve).catch(resolve);
+          };
+        });
 
         cameraActive = true;
         document.getElementById('cameraStandbyPrompt').classList.add('hidden');
@@ -626,7 +658,16 @@
 
         startLiveDetectionLoop();
       } catch (err) {
-        alert("Camera Initialization Failed: " + err.message);
+        console.error("Camera Error:", err);
+        let msg = err.message || err.name;
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          msg = "Permission Denied. Please allow camera permissions in your browser.";
+        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+          msg = "No Camera Device Found. Ensure your Raspberry Pi camera (or USB camera) is connected and recognized (try running 'libcamera-hello' or 'v4l2-ctl --list-devices' on the Pi).";
+        } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+          msg = "Camera is currently busy or in use by another application.";
+        }
+        alert("Camera Initialization Failed:\n" + msg);
       }
     }
 
