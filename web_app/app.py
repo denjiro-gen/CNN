@@ -42,15 +42,31 @@ MODEL_ACCURACY = "86.27% balanced"
 
 for tflite_path in TFLITE_PATHS:
     if os.path.exists(tflite_path):
+        # 1. Try LiteRT (new standard for TFLite with full modern opcode v12+ support)
         try:
-            import tflite_runtime.interpreter as tflite
-            tflite_interpreter = tflite.Interpreter(model_path=tflite_path)
-        except ImportError:
+            from ai_edge_litert.interpreter import Interpreter
+            tflite_interpreter = Interpreter(model_path=tflite_path)
+            print("[INFO] Initialized with ai_edge_litert (LiteRT)")
+        except Exception:
+            pass
+
+        # 2. Try tflite_runtime
+        if tflite_interpreter is None:
+            try:
+                import tflite_runtime.interpreter as tflite
+                tflite_interpreter = tflite.Interpreter(model_path=tflite_path)
+                print("[INFO] Initialized with tflite_runtime")
+            except Exception:
+                pass
+
+        # 3. Try full tensorflow
+        if tflite_interpreter is None:
             try:
                 import tensorflow as tf
                 tflite_interpreter = tf.lite.Interpreter(model_path=tflite_path)
-            except ImportError:
-                tflite_interpreter = None
+                print("[INFO] Initialized with tensorflow.lite")
+            except Exception:
+                pass
 
         if tflite_interpreter is not None:
             tflite_interpreter.allocate_tensors()
