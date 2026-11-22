@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aedes Mosquito & Insect Computer Vision Surveillance</title>
+
+  <!-- Poppins Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
+
+  <!-- Font Awesome 6 Icons (No Emojis) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Poppins"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            brand: {
+              aedes: '#dc2626',      // Primary Red for Aedes aegypti
+              aedesDark: '#991b1b',
+              aedesBg: 'rgba(220, 38, 38, 0.12)',
+              other: '#2563eb',      // Primary Blue for Other Insects
+              otherDark: '#1d4ed8',
+              otherBg: 'rgba(37, 99, 235, 0.12)',
+              panel: '#0f172a',
+              card: '#1e293b',
+              border: '#334155',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background-color: #0b0f19;
+      color: #f1f5f9;
+    }
+
+    .cv-viewport {
+      position: relative;
+      background: #000;
+      border: 1px solid #334155;
+      border-radius: 0.75rem;
+      overflow: hidden;
+    }
+
+    .cv-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .scan-line {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: rgba(56, 189, 248, 0.4);
+      animation: scan 4s linear infinite;
+      pointer-events: none;
+    }
+
+    @keyframes scan {
+      0% {
+        top: 0%;
+      }
+
+      50% {
+        top: 100%;
+      }
+
+      100% {
+        top: 0%;
+      }
+    }
+
+    .hud-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+
+<body class="min-h-screen flex flex-col bg-[#0b0f19]">
+
+  <!-- Top Navigation Bar -->
+  <header class="border-b border-slate-800 bg-[#0f172a] sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+
+      <!-- System Title & Branding -->
+      <div class="flex items-center gap-3">
+        <div
+          class="w-10 h-10 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-sky-400 text-lg">
+          <i class="fa-solid fa-microscope"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-sm font-semibold tracking-tight text-white">
+              Aedes Mosquito & Insect Surveillance System
+            </h1>
+            <span class="hud-badge px-2 py-0.5 rounded bg-emerald-950/40 text-emerald-300 border border-emerald-500/30">
+              MobileNetV2 TFLite (86.3%)
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-400">Computer Vision Object Detection & Species Classification</p>
+        </div>
+      </div>
+
+      <!-- Header Status Actions -->
+      <div class="flex items-center gap-3">
+        <a href="http://localhost:5050" target="_blank"
+          class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition-colors">
+          <i class="fa-solid fa-sliders text-sky-400"></i>
+          <span>CNN Training Platform (5050)</span>
+        </a>
+
+        <div id="cameraStatusPill"
+          class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono bg-slate-800 border border-slate-700 text-slate-400">
+          <span class="w-2 h-2 rounded-full bg-slate-500" id="cameraStatusDot"></span>
+          <span id="cameraStatusLabel">CAMERA: STANDBY</span>
+        </div>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Main Dashboard Container -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 space-y-6">
+
+    <!-- Primary Grid: Camera / Detection Stream & Telemetry Panel -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+      <!-- Left Column: Live Camera & Vision Viewport (7 Cols) -->
+      <div class="lg:col-span-7 space-y-4">
+
+        <!-- Mode Navigation Bar -->
+        <div class="flex items-center justify-between bg-[#0f172a] border border-slate-800 p-1.5 rounded-xl text-xs">
+          <div class="flex gap-1">
+            <button id="btnModeCamera" onclick="switchInputMode('camera')"
+              class="px-4 py-2 rounded-lg font-medium transition-all bg-sky-600 text-white shadow-sm flex items-center gap-2">
+              <i class="fa-solid fa-video"></i>
+              <span>Live Camera Feed</span>
+            </button>
+            <button id="btnModeUpload" onclick="switchInputMode('upload')"
+              class="px-4 py-2 rounded-lg font-medium transition-all text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-file-arrow-up"></i>
+              <span>Static File Analysis</span>
+            </button>
+            <button id="btnModeSamples" onclick="switchInputMode('samples')"
+              class="px-4 py-2 rounded-lg font-medium transition-all text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-vial"></i>
+              <span>Specimen Presets</span>
+            </button>
+          </div>
+
+          <div class="hidden sm:flex items-center gap-2 pr-2 text-[11px] text-slate-400 font-mono">
+            <span>FPS: <strong id="hudFps" class="text-emerald-400">0.0</strong></span>
+          </div>
+        </div>
+
+        <!-- 1. LIVE CAMERA VIEWPORT -->
+        <div id="viewCamera" class="space-y-3">
+          <div class="cv-viewport aspect-video">
+            <video id="webcam" autoplay playsinline muted class="w-full h-full object-cover"></video>
+            <canvas id="detectionCanvas" class="cv-overlay"></canvas>
+            <canvas id="procCanvas" class="hidden"></canvas>
+            <div id="scanLine" class="scan-line hidden"></div>
+
+            <!-- Standby Overlay Prompt -->
+            <div id="cameraStandbyPrompt"
+              class="absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center p-6 text-center space-y-4">
+              <div
+                class="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400 text-2xl">
+                <i class="fa-solid fa-camera"></i>
+              </div>
+              <div class="max-w-sm space-y-1">
+                <p class="text-sm font-semibold text-white">Camera Offline</p>
+                <p class="text-xs text-slate-400">Initialize webcam video stream for real-time mosquito specimen
+                  tracking and classification.</p>
+              </div>
+              <button onclick="startCamera()"
+                class="px-5 py-2.5 rounded-lg bg-sky-600 hover:bg-sky-500 font-medium text-xs text-white shadow-lg transition-colors flex items-center gap-2">
+                <i class="fa-solid fa-play text-[10px]"></i>
+                <span>Initialize Camera Stream</span>
+              </button>
+            </div>
+
+            <!-- HUD Overlay Indicators -->
+            <div class="absolute top-3 left-3 flex items-center gap-2 pointer-events-none">
+              <span id="hudStateBadge"
+                class="hud-badge px-2.5 py-1 rounded bg-black/75 border border-slate-700 text-slate-300">
+                STATE: IDLE
+              </span>
+            </div>
+
+            <div class="absolute top-3 right-3 flex items-center gap-2 pointer-events-none">
+              <span class="hud-badge px-2.5 py-1 rounded bg-black/75 border border-slate-700 text-sky-400">
+                MODEL: 64x64 CNN
+              </span>
+            </div>
+
+            <div class="absolute bottom-3 left-3 flex items-center gap-2 pointer-events-none">
+              <span id="hudTargetBadge"
+                class="hud-badge px-2.5 py-1 rounded bg-black/75 border border-slate-700 text-slate-400">
+                NO TARGET
+              </span>
+            </div>
+          </div>
+
+          <!-- Camera Controls Toolbar -->
+          <div class="flex items-center justify-between bg-[#0f172a] border border-slate-800 p-3 rounded-xl gap-3">
+            <div class="flex items-center gap-2">
+              <button id="btnStartCam" onclick="startCamera()"
+                class="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium transition-colors flex items-center gap-1.5">
+                <i class="fa-solid fa-play text-[10px]"></i>
+                <span>Start Stream</span>
+              </button>
+              <button id="btnStopCam" onclick="stopCamera()" disabled
+                class="px-3.5 py-2 rounded-lg bg-slate-800 text-slate-500 text-xs font-medium cursor-not-allowed transition-colors flex items-center gap-1.5">
+                <i class="fa-solid fa-stop text-[10px]"></i>
+                <span>Stop Stream</span>
+              </button>
+              <button id="btnSnapshot" onclick="captureSnapshot()" disabled
+                class="px-3.5 py-2 rounded-lg bg-slate-800 text-slate-500 text-xs font-medium cursor-not-allowed transition-colors flex items-center gap-1.5">
+                <i class="fa-solid fa-camera"></i>
+                <span>Capture Snapshot</span>
+              </button>
+            </div>
+
+            <button onclick="clearHistory()"
+              class="px-3 py-2 rounded-lg text-xs text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 transition-colors flex items-center gap-1.5">
+              <i class="fa-solid fa-trash-can"></i>
+              <span>Clear Log</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. STATIC FILE UPLOAD VIEWPORT -->
+        <div id="viewUpload" class="hidden space-y-3">
+          <div id="uploadDropZone"
+            class="border-2 border-dashed border-slate-700 hover:border-sky-500/60 transition-colors rounded-xl p-10 text-center cursor-pointer bg-[#0f172a]/60">
+            <input type="file" id="staticFileInput" accept="image/*" class="hidden">
+            <div class="flex flex-col items-center gap-2.5">
+              <div
+                class="w-12 h-12 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-sky-400 text-xl">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+              </div>
+              <p class="text-xs font-semibold text-slate-200">Select specimen image or drag and drop</p>
+              <p class="text-[11px] text-slate-400">Supports JPG, PNG, WEBP (specimen close-ups recommended)</p>
+            </div>
+          </div>
+
+          <div id="staticPreviewContainer" class="hidden space-y-3">
+            <div class="cv-viewport aspect-video">
+              <img id="staticImg" src="" alt="Specimen" class="w-full h-full object-contain">
+              <canvas id="staticCanvas" class="cv-overlay"></canvas>
+            </div>
+            <button onclick="analyzeStaticImage()"
+              class="w-full py-2.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium text-xs transition-colors flex items-center justify-center gap-2">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <span>Execute CNN Classification</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. SAMPLE PRESETS VIEWPORT -->
+        <div id="viewSamples" class="hidden space-y-3">
+          <div class="grid grid-cols-2 gap-3">
+            <button onclick="loadSamplePreset('/samples/aedes_aegypti_sample1.jpg', 'Specimen A')"
+              class="p-3 rounded-xl bg-[#0f172a] border border-slate-800 hover:border-sky-500/50 transition-all text-left flex items-center gap-3">
+              <img src="/samples/aedes_aegypti_sample1.jpg" alt="Specimen A"
+                class="w-14 h-14 rounded-lg object-cover border border-slate-700">
+              <div>
+                <p class="text-xs font-semibold text-white">Specimen A (Adult)</p>
+                <p class="text-[11px] text-slate-400">Aedes aegypti</p>
+                <span class="hud-badge text-[10px] text-sky-400 mt-1 inline-block">Load & Classify</span>
+              </div>
+            </button>
+            <button onclick="loadSamplePreset('/samples/aedes_aegypti_sample2.jpg', 'Specimen B')"
+              class="p-3 rounded-xl bg-[#0f172a] border border-slate-800 hover:border-sky-500/50 transition-all text-left flex items-center gap-3">
+              <img src="/samples/aedes_aegypti_sample2.jpg" alt="Specimen B"
+                class="w-14 h-14 rounded-lg object-cover border border-slate-700">
+              <div>
+                <p class="text-xs font-semibold text-white">Specimen B (Close-up)</p>
+                <p class="text-[11px] text-slate-400">Aedes aegypti</p>
+                <span class="hud-badge text-[10px] text-sky-400 mt-1 inline-block">Load & Classify</span>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Bounding Box Color Legend -->
+        <div class="bg-[#0f172a] border border-slate-800 rounded-xl p-3.5 flex items-center justify-between text-xs">
+          <span class="font-medium text-slate-300 flex items-center gap-2">
+            <i class="fa-solid fa-draw-polygon text-slate-400"></i>
+            <span>Bounding Box Classification Legend</span>
+          </span>
+          <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+              <span class="w-3.5 h-3.5 rounded border-2 border-red-500 bg-red-500/20 inline-block"></span>
+              <span class="text-slate-300 font-mono text-[11px]">Red: Aedes aegypti</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="w-3.5 h-3.5 rounded border-2 border-blue-500 bg-blue-500/20 inline-block"></span>
+              <span class="text-slate-300 font-mono text-[11px]">Blue: Other Insect</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right Column: Detection Information Panel (5 Cols) -->
+      <div class="lg:col-span-5 space-y-4">
+
+        <!-- Section Header -->
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+            <i class="fa-solid fa-chart-simple text-sky-400"></i>
+            <span>Detection Telemetry & Analysis</span>
+          </h2>
+          <span class="text-[10px] font-mono text-slate-400" id="liveTimestamp">--</span>
+        </div>
+
+        <!-- 6 Statistic Cards Grid -->
+        <div class="grid grid-cols-2 gap-3">
+
+          <!-- Card 1: Total Detections -->
+          <div class="bg-[#0f172a] border border-slate-800 p-3.5 rounded-xl space-y-1">
+            <div class="flex items-center justify-between text-slate-400 text-xs">
+              <span>Total Detections</span>
+              <i class="fa-solid fa-cubes text-slate-400"></i>
+            </div>
+            <p id="statTotalDetections" class="text-2xl font-bold font-mono text-white">0</p>
+          </div>
+
+          <!-- Card 2: Highest Confidence -->
+          <div class="bg-[#0f172a] border border-slate-800 p-3.5 rounded-xl space-y-1">
+            <div class="flex items-center justify-between text-slate-400 text-xs">
+              <span>Peak Confidence</span>
+              <i class="fa-solid fa-award text-amber-400"></i>
+            </div>
+            <p id="statPeakConfidence" class="text-2xl font-bold font-mono text-slate-200">--%</p>
+          </div>
+
+          <!-- Card 3: Aedes aegypti Detections (RED) -->
+          <div class="bg-red-950/20 border border-red-500/30 p-3.5 rounded-xl space-y-1">
+            <div class="flex items-center justify-between text-red-300 text-xs font-medium">
+              <span>Aedes aegypti</span>
+              <i class="fa-solid fa-triangle-exclamation text-red-400"></i>
+            </div>
+            <p id="statAedesCount" class="text-2xl font-bold font-mono text-red-400">0</p>
+            <p class="text-[10px] text-red-300/80">High-risk vector</p>
+          </div>
+
+          <!-- Card 4: Other Insect Detections (BLUE) -->
+          <div class="bg-blue-950/20 border border-blue-500/30 p-3.5 rounded-xl space-y-1">
+            <div class="flex items-center justify-between text-blue-300 text-xs font-medium">
+              <span>Other Insect</span>
+              <i class="fa-solid fa-shield text-blue-400"></i>
+            </div>
+            <p id="statOtherCount" class="text-2xl font-bold font-mono text-blue-400">0</p>
+            <p class="text-[10px] text-blue-300/80">Non-aegypti species</p>
+          </div>
+
+        </div>
+
+        <!-- Latest Classification Assessment Card -->
+        <div id="latestAssessmentCard" class="bg-[#0f172a] border border-slate-800 p-4 rounded-xl space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium uppercase tracking-wider text-slate-400">Latest Classification</span>
+            <span id="latestBadge"
+              class="hud-badge px-2.5 py-1 rounded bg-slate-800 text-slate-400 border border-slate-700">
+              Awaiting Target
+            </span>
+          </div>
+
+          <div class="flex items-baseline justify-between pt-1">
+            <h3 id="latestLabel" class="text-lg font-bold text-slate-200">No Specimen Identified</h3>
+            <span id="latestConfidence" class="text-2xl font-bold font-mono text-slate-400">0.0%</span>
+          </div>
+
+          <!-- Probability Distribution Bars -->
+          <div class="space-y-2 pt-2 border-t border-slate-800 text-xs">
+            <div class="space-y-1">
+              <div class="flex justify-between text-[11px] font-mono">
+                <span class="text-red-400">Aedes aegypti</span>
+                <span id="probBarAedesText" class="text-red-400">0.0%</span>
+              </div>
+              <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                <div id="probBarAedes" class="bg-red-500 h-full w-0 transition-all duration-300"></div>
+              </div>
+            </div>
+
+            <div class="space-y-1">
+              <div class="flex justify-between text-[11px] font-mono">
+                <span class="text-blue-400">Other Insect</span>
+                <span id="probBarOtherText" class="text-blue-400">0.0%</span>
+              </div>
+              <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                <div id="probBarOther" class="bg-blue-500 h-full w-0 transition-all duration-300"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Technical Architecture Card -->
+        <div class="bg-[#0f172a] border border-slate-800 p-4 rounded-xl space-y-2 text-xs text-slate-400">
+          <div class="flex items-center justify-between text-slate-200 font-medium">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-microchip text-sky-400"></i>
+              <span>Active Inference Engine</span>
+            </div>
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-sky-950/60 border border-sky-700/50 text-sky-300">TFLite 128x128</span>
+          </div>
+          <p class="text-[11px] leading-relaxed text-slate-300">
+            Deployed model: <strong>MobileNetV2 Transfer Learning</strong> (retrained with 6,008 chamber images).
+          </p>
+          <div class="grid grid-cols-2 gap-2 text-[10px] font-mono pt-1">
+            <div class="p-2 rounded bg-slate-900 border border-slate-800">
+              <span class="text-slate-400">Balanced Acc:</span>
+              <span class="text-emerald-400 font-bold block text-sm">86.27%</span>
+            </div>
+            <div class="p-2 rounded bg-slate-900 border border-slate-800">
+              <span class="text-slate-400">Aedes Precision:</span>
+              <span class="text-sky-400 font-bold block text-sm">94.32%</span>
+            </div>
+          </div>
+          <div
+            class="p-2.5 rounded bg-slate-900 border border-slate-800 text-[10px] font-mono space-y-1 text-slate-400">
+            <p><strong>Stage 1:</strong> Spatial saliency contours isolate specimen coordinates [ymin, xmin, ymax, xmax].</p>
+            <p><strong>Stage 2:</strong> ROI normalized into 128x128 tensor input for MobileNetV2 feature extraction.</p>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Section: Detection History Log Table -->
+    <div class="bg-[#0f172a] border border-slate-800 rounded-xl p-5 space-y-4">
+
+      <!-- Table Header & Controls -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+        <div>
+          <h2 class="text-sm font-semibold text-white flex items-center gap-2">
+            <i class="fa-solid fa-clock-rotate-left text-sky-400"></i>
+            <span>Surveillance Detection History</span>
+          </h2>
+          <p class="text-xs text-slate-400">Chronological record of verified insect detections and classifications.</p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <!-- Class Filter -->
+          <select id="historyFilter" onchange="filterHistoryTable()"
+            class="bg-slate-800 border border-slate-700 text-xs rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500">
+            <option value="ALL">All Classifications</option>
+            <option value="Aedes aegypti">Aedes aegypti (Red)</option>
+            <option value="Other">Other Insect (Blue)</option>
+          </select>
+
+          <!-- Search Input -->
+          <div class="relative">
+            <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-2.5 text-slate-500 text-xs"></i>
+            <input type="text" id="historySearch" oninput="filterHistoryTable()" placeholder="Search ID or Date..."
+              class="bg-slate-800 border border-slate-700 text-xs rounded-lg pl-8 pr-3 py-1.5 text-slate-200 focus:outline-none focus:border-sky-500 w-44">
+          </div>
+        </div>
+      </div>
+
+      <!-- History Table -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr class="border-b border-slate-800 text-slate-400 uppercase text-[10px] tracking-wider font-mono">
+              <th class="py-2.5 px-3">Detection ID</th>
+              <th class="py-2.5 px-3">Specimen Snapshot</th>
+              <th class="py-2.5 px-3">Classification</th>
+              <th class="py-2.5 px-3">Model Confidence</th>
+              <th class="py-2.5 px-3">Timestamp</th>
+              <th class="py-2.5 px-3">Verification Status</th>
+            </tr>
+          </thead>
+          <tbody id="historyTableBody" class="divide-y divide-slate-800/60 font-medium">
+            <tr>
+              <td colspan="6" class="py-8 text-center text-slate-500 text-xs">
+                No detections recorded yet. Start camera stream or analyze a specimen image.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Clean Footer -->
+  <footer class="border-t border-slate-800/80 py-4 bg-[#090d15] text-center text-xs text-slate-400">
+    <p>Aedes Mosquito & Insect Computer Vision Surveillance Platform • Research & Vector Monitoring Edition</p>
+  </footer>
+
+  <!-- Main JavaScript Controller -->
+  <script>
+    // Configurable API Base URL for Vercel -> Railway deployment
+    // If empty or '/', uses relative path (same domain). Otherwise, point to Railway URL.
+    const API_BASE = window.REACT_APP_API_URL || window.API_BASE_URL || localStorage.getItem('API_BASE_URL') || '';
+
+    // System State
+    let currentMode = 'camera';
+    let cameraStream = null;
+    let cameraActive = false;
+    let isDetecting = false;
+    let detectionHistory = [];
+
+    let totalDetections = 0;
+    let aedesCount = 0;
+    let otherCount = 0;
+    let peakConfidence = 0.0;
+
+    let lastFrameTime = performance.now();
+    let frameCounter = 0;
+    let fpsValue = 0;
+
+    // Smoothed Bounding Box Coordinates to Prevent Flickering
+    let smoothedBox = null;
+    let boxAlpha = 0.35; // Smoothing factor
+
+    document.addEventListener('DOMContentLoaded', () => {
+      updateLiveTimestamp();
+      setInterval(updateLiveTimestamp, 1000);
+      setupUploadDropzone();
+      fetchServerStatus();
+    });
+
+    function updateLiveTimestamp() {
+      const now = new Date();
+      document.getElementById('liveTimestamp').innerText = now.toISOString().replace('T', ' ').slice(0, 19);
+    }
+
+    async function fetchServerStatus() {
+      try {
+        const res = await fetch(`${API_BASE}/api/status`);
+        const data = await res.json();
+        if (data.status === 'online') {
+          console.log("[CV-SYS] Connected to CNN Inference Engine.");
+        }
+      } catch (err) {
+        console.warn("[CV-SYS] Backend status check failed", err);
+      }
+    }
+
+    // Input Mode Navigation
+    function switchInputMode(mode) {
+      currentMode = mode;
+      document.getElementById('viewCamera').classList.toggle('hidden', mode !== 'camera');
+      document.getElementById('viewUpload').classList.toggle('hidden', mode !== 'upload');
+      document.getElementById('viewSamples').classList.toggle('hidden', mode !== 'samples');
+
+      // Update Tab Styles
+      ['Camera', 'Upload', 'Samples'].forEach(m => {
+        const btn = document.getElementById('btnMode' + m);
+        if (m.toLowerCase() === mode) {
+          btn.className = "px-4 py-2 rounded-lg font-medium transition-all bg-sky-600 text-white shadow-sm flex items-center gap-2";
+        } else {
+          btn.className = "px-4 py-2 rounded-lg font-medium transition-all text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-2";
+        }
+      });
+
+      if (mode !== 'camera' && cameraActive) {
+        stopCamera();
+      }
+    }
+
+    // Camera Lifecycle
+    async function startCamera() {
+      try {
+        const video = document.getElementById('webcam');
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'environment' },
+          audio: false
+        });
+        video.srcObject = cameraStream;
+        await video.play();
+
+        cameraActive = true;
+        document.getElementById('cameraStandbyPrompt').classList.add('hidden');
+        document.getElementById('scanLine').classList.remove('hidden');
+
+        document.getElementById('btnStartCam').disabled = true;
+        document.getElementById('btnStartCam').classList.add('opacity-50', 'cursor-not-allowed');
+        document.getElementById('btnStopCam').disabled = false;
+        document.getElementById('btnStopCam').classList.remove('opacity-50', 'cursor-not-allowed');
+        document.getElementById('btnSnapshot').disabled = false;
+        document.getElementById('btnSnapshot').classList.remove('opacity-50', 'cursor-not-allowed');
+
+        // Status pill
+        document.getElementById('cameraStatusDot').className = "w-2 h-2 rounded-full bg-emerald-400 animate-pulse";
+        document.getElementById('cameraStatusLabel').innerText = "CAMERA: ACTIVE";
+
+        // Resize overlay canvas to match video viewport
+        const canvas = document.getElementById('detectionCanvas');
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+
+        startLiveDetectionLoop();
+      } catch (err) {
+        alert("Camera Initialization Failed: " + err.message);
+      }
+    }
+
+    function stopCamera() {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(t => t.stop());
+        cameraStream = null;
+      }
+      cameraActive = false;
+      isDetecting = false;
+      smoothedBox = null;
+
+      document.getElementById('cameraStandbyPrompt').classList.remove('hidden');
+      document.getElementById('scanLine').classList.add('hidden');
+
+      document.getElementById('btnStartCam').disabled = false;
+      document.getElementById('btnStartCam').classList.remove('opacity-50', 'cursor-not-allowed');
+      document.getElementById('btnStopCam').disabled = true;
+      document.getElementById('btnStopCam').classList.add('opacity-50', 'cursor-not-allowed');
+      document.getElementById('btnSnapshot').disabled = true;
+      document.getElementById('btnSnapshot').classList.add('opacity-50', 'cursor-not-allowed');
+
+      document.getElementById('cameraStatusDot').className = "w-2 h-2 rounded-full bg-slate-500";
+      document.getElementById('cameraStatusLabel').innerText = "CAMERA: STANDBY";
+
+      document.getElementById('hudStateBadge').innerText = "STATE: IDLE";
+      document.getElementById('hudTargetBadge').innerText = "NO TARGET";
+      document.getElementById('hudFps').innerText = "0.0";
+
+      // Clear canvas
+      const canvas = document.getElementById('detectionCanvas');
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // Real-Time Computer Vision Detection Loop
+    async function startLiveDetectionLoop() {
+      const video = document.getElementById('webcam');
+      const canvas = document.getElementById('detectionCanvas');
+      const procCanvas = document.getElementById('procCanvas');
+      const ctx = canvas.getContext('2d');
+      const procCtx = procCanvas.getContext('2d');
+
+      procCanvas.width = 320;
+      procCanvas.height = 240;
+
+      let lastDetectionTime = 0;
+      const detectionIntervalMs = 280; // ~3.5 inferences per second to preserve smooth video rendering
+
+      async function loop(now) {
+        if (!cameraActive) return;
+
+        // FPS Calculation
+        frameCounter++;
+        if (now - lastFrameTime >= 1000) {
+          fpsValue = ((frameCounter * 1000) / (now - lastFrameTime)).toFixed(1);
+          document.getElementById('hudFps').innerText = fpsValue;
+          frameCounter = 0;
+          lastFrameTime = now;
+        }
+
+        // Render current smoothed bounding box overlay
+        renderOverlay(ctx, canvas.width, canvas.height);
+
+        // Perform CNN evaluation at controlled interval
+        if (now - lastDetectionTime >= detectionIntervalMs && !isDetecting) {
+          lastDetectionTime = now;
+          isDetecting = true;
+
+          try {
+            procCtx.drawImage(video, 0, 0, procCanvas.width, procCanvas.height);
+            const dataUrl = procCanvas.toDataURL('image/jpeg', 0.82);
+
+            const res = await fetch(`${API_BASE}/api/detect`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ image: dataUrl })
+            });
+            const data = await res.json();
+            if (data.success && data.detected_objects && data.detected_objects.length > 0) {
+              const primary = data.detected_objects[0];
+              updateSmoothedBox(primary);
+              updateTelemetry(data);
+            }
+          } catch (err) {
+            console.error("Live detection frame error", err);
+          } finally {
+            isDetecting = false;
+          }
+        }
+
+        requestAnimationFrame(loop);
+      }
+
+      requestAnimationFrame(loop);
+    }
+
+    // Box Coordinate Smoothing Filter
+    function updateSmoothedBox(obj) {
+      const [ymin, xmin, ymax, xmax] = obj.box;
+      if (!smoothedBox) {
+        smoothedBox = { ymin, xmin, ymax, xmax, label: obj.label, color: obj.color, conf: obj.confidence_pct };
+      } else {
+        smoothedBox.ymin = smoothedBox.ymin * (1 - boxAlpha) + ymin * boxAlpha;
+        smoothedBox.xmin = smoothedBox.xmin * (1 - boxAlpha) + xmin * boxAlpha;
+        smoothedBox.ymax = smoothedBox.ymax * (1 - boxAlpha) + ymax * boxAlpha;
+        smoothedBox.xmax = smoothedBox.xmax * (1 - boxAlpha) + xmax * boxAlpha;
+        smoothedBox.label = obj.label;
+        smoothedBox.color = obj.color;
+        smoothedBox.conf = obj.confidence_pct;
+      }
+    }
+
+    // Bounding Box Drawing Function (RED = Aedes aegypti, BLUE = Other)
+    function renderOverlay(ctx, W, H) {
+      ctx.clearRect(0, 0, W, H);
+      if (!smoothedBox) return;
+
+      const x = smoothedBox.xmin * W;
+      const y = smoothedBox.ymin * H;
+      const w = (smoothedBox.xmax - smoothedBox.xmin) * W;
+      const h = (smoothedBox.ymax - smoothedBox.ymin) * H;
+
+      const isAedes = (smoothedBox.color === 'red');
+      const strokeColor = isAedes ? '#ef4444' : '#3b82f6';
+      const bgColor = isAedes ? 'rgba(239, 68, 68, 0.92)' : 'rgba(59, 130, 246, 0.92)';
+
+      // 1. Primary Bounding Box
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = strokeColor;
+      ctx.strokeRect(x, y, w, h);
+
+      // 2. Corner Target Reticles for High-Precision Alignment
+      const cornerLen = Math.min(18, w * 0.2, h * 0.2);
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = strokeColor;
+
+      // Top-Left
+      ctx.beginPath();
+      ctx.moveTo(x, y + cornerLen);
+      ctx.lineTo(x, y);
+      ctx.lineTo(x + cornerLen, y);
+      ctx.stroke();
+
+      // Top-Right
+      ctx.beginPath();
+      ctx.moveTo(x + w - cornerLen, y);
+      ctx.lineTo(x + w, y);
+      ctx.lineTo(x + w, y + cornerLen);
+      ctx.stroke();
+
+      // Bottom-Left
+      ctx.beginPath();
+      ctx.moveTo(x, y + h - cornerLen);
+      ctx.lineTo(x, y + h);
+      ctx.lineTo(x + cornerLen, y + h);
+      ctx.stroke();
+
+      // Bottom-Right
+      ctx.beginPath();
+      ctx.moveTo(x + w - cornerLen, y + h);
+      ctx.lineTo(x + w, y + h);
+      ctx.lineTo(x + w, y + h - cornerLen);
+      ctx.stroke();
+
+      // 3. Label Tag above Bounding Box
+      const labelText = `${smoothedBox.label} | ${smoothedBox.conf}%`;
+      ctx.font = '600 12px "Poppins", sans-serif';
+      const textWidth = ctx.measureText(labelText).width;
+      const tagHeight = 22;
+      const tagY = Math.max(0, y - tagHeight);
+
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(x, tagY, textWidth + 14, tagHeight);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(labelText, x + 7, tagY + 15);
+    }
+
+    // Telemetry & Statistics Updates
+    function updateTelemetry(data) {
+      totalDetections++;
+      document.getElementById('statTotalDetections').innerText = totalDetections;
+
+      const isAedes = data.is_aedes_aegypti;
+      if (isAedes) aedesCount++;
+      else otherCount++;
+
+      document.getElementById('statAedesCount').innerText = aedesCount;
+      document.getElementById('statOtherCount').innerText = otherCount;
+
+      if (data.confidence_pct > peakConfidence) {
+        peakConfidence = data.confidence_pct;
+        document.getElementById('statPeakConfidence').innerText = peakConfidence + "%";
+      }
+
+      // HUD Badges
+      const stateBadge = document.getElementById('hudStateBadge');
+      stateBadge.innerText = isAedes ? "TARGET: AEDES AEGYPTI" : "TARGET: OTHER INSECT";
+      stateBadge.className = isAedes
+        ? "hud-badge px-2.5 py-1 rounded bg-red-950/90 border border-red-500 text-red-300"
+        : "hud-badge px-2.5 py-1 rounded bg-blue-950/90 border border-blue-500 text-blue-300";
+
+      document.getElementById('hudTargetBadge').innerText = `CONF: ${data.confidence_pct}%`;
+
+      // Latest Assessment Card
+      const latestBadge = document.getElementById('latestBadge');
+      latestBadge.innerText = isAedes ? "Vector Alert" : "Non-Aegypti";
+      latestBadge.className = isAedes
+        ? "hud-badge px-2.5 py-1 rounded bg-red-600 text-white font-semibold"
+        : "hud-badge px-2.5 py-1 rounded bg-blue-600 text-white font-semibold";
+
+      const latestLabel = document.getElementById('latestLabel');
+      latestLabel.innerText = data.prediction;
+      latestLabel.className = isAedes ? "text-lg font-bold text-red-400" : "text-lg font-bold text-blue-400";
+
+      document.getElementById('latestConfidence').innerText = data.confidence_pct + "%";
+
+      // Bars
+      const pAedes = data.probabilities.aedes_aegypti_pct;
+      const pOther = data.probabilities.other_insect_pct;
+      document.getElementById('probBarAedes').style.width = pAedes + "%";
+      document.getElementById('probBarAedesText').innerText = pAedes + "%";
+      document.getElementById('probBarOther').style.width = pOther + "%";
+      document.getElementById('probBarOtherText').innerText = pOther + "%";
+
+      // Append record to table
+      addHistoryRow(data);
+    }
+
+    function addHistoryRow(data) {
+      const tbody = document.getElementById('historyTableBody');
+      const isAedes = data.is_aedes_aegypti;
+      const now = new Date();
+      const timeStr = now.toISOString().replace('T', ' ').slice(0, 19);
+
+      const row = document.createElement('tr');
+      row.className = "hover:bg-slate-800/40 transition-colors";
+      row.dataset.classification = data.prediction;
+      row.dataset.id = data.detection_id || "DET";
+      row.dataset.time = timeStr;
+
+      row.innerHTML = `
+        <td class="py-2.5 px-3 font-mono text-slate-300 text-xs">${data.detection_id || '#DET-000'}</td>
+        <td class="py-2.5 px-3">
+          <img src="${data.thumbnail_64x64}" alt="Specimen" class="w-9 h-9 rounded bg-black border border-slate-700 object-cover">
+        </td>
+        <td class="py-2.5 px-3">
+          <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold ${isAedes
+          ? 'bg-red-500/20 text-red-300 border border-red-500/40'
+          : 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+        }">
+            <span class="w-1.5 h-1.5 rounded-full ${isAedes ? 'bg-red-400' : 'bg-blue-400'}"></span>
+            ${data.prediction}
+          </span>
+        </td>
+        <td class="py-2.5 px-3 font-mono text-xs ${isAedes ? 'text-red-300' : 'text-blue-300'} font-semibold">
+          ${data.confidence_pct}%
+        </td>
+        <td class="py-2.5 px-3 font-mono text-slate-400 text-[11px]">${timeStr}</td>
+        <td class="py-2.5 px-3">
+          <span class="text-[11px] text-slate-300 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
+            ${data.confidence_pct >= 85 ? 'Verified' : 'Flagged'}
+          </span>
+        </td>
+      `;
+
+      // Clear empty placeholder if exists
+      if (tbody.children.length === 1 && tbody.children[0].innerText.includes('No detections recorded')) {
+        tbody.innerHTML = '';
+      }
+
+      tbody.insertBefore(row, tbody.firstChild);
+
+      // Keep maximum 50 rows
+      if (tbody.children.length > 50) {
+        tbody.removeChild(tbody.lastChild);
+      }
+    }
+
+    function captureSnapshot() {
+      if (!cameraActive) return;
+      const video = document.getElementById('webcam');
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0);
+
+      // Overlay bounding box if exists
+      if (smoothedBox) {
+        renderOverlay(ctx, canvas.width, canvas.height);
+      }
+
+      const a = document.createElement('a');
+      a.href = canvas.toDataURL('image/jpeg', 0.95);
+      a.download = `specimen_capture_${Date.now()}.jpg`;
+      a.click();
+    }
+
+    function clearHistory() {
+      fetch(`${API_BASE}/api/history/clear`, { method: 'POST' }).catch(() => { });
+      const tbody = document.getElementById('historyTableBody');
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="6" class="py-8 text-center text-slate-500 text-xs">
+            Detection log cleared.
+          </td>
+        </tr>
+      `;
+      totalDetections = 0;
+      aedesCount = 0;
+      otherCount = 0;
+      peakConfidence = 0.0;
+      document.getElementById('statTotalDetections').innerText = '0';
+      document.getElementById('statAedesCount').innerText = '0';
+      document.getElementById('statOtherCount').innerText = '0';
+      document.getElementById('statPeakConfidence').innerText = '--%';
+    }
+
+    function filterHistoryTable() {
+      const query = document.getElementById('historySearch').value.toLowerCase();
+      const filter = document.getElementById('historyFilter').value;
+      const rows = document.getElementById('historyTableBody').getElementsByTagName('tr');
+
+      for (let row of rows) {
+        if (!row.dataset.classification) continue;
+        const matchQuery = row.innerText.toLowerCase().includes(query);
+        const matchClass = (filter === 'ALL') || (row.dataset.classification === filter);
+        row.style.display = (matchQuery && matchClass) ? '' : 'none';
+      }
+    }
+
+    // Static Analysis Handling
+    function setupUploadDropzone() {
+      const dropZone = document.getElementById('uploadDropZone');
+      const fileInput = document.getElementById('staticFileInput');
+
+      dropZone.addEventListener('click', () => fileInput.click());
+      dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('border-sky-500', 'bg-sky-500/5');
+      });
+      dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('border-sky-500', 'bg-sky-500/5');
+      });
+      dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('border-sky-500', 'bg-sky-500/5');
+        if (e.dataTransfer.files.length) {
+          loadStaticFile(e.dataTransfer.files[0]);
+        }
+      });
+      fileInput.addEventListener('change', () => {
+        if (fileInput.files.length) {
+          loadStaticFile(fileInput.files[0]);
+        }
+      });
+    }
+
+    function loadStaticFile(file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        displayStaticImage(e.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function loadSamplePreset(url, name) {
+      switchInputMode('upload');
+      displayStaticImage(url);
+    }
+
+    function displayStaticImage(src) {
+      const img = document.getElementById('staticImg');
+      img.src = src;
+      document.getElementById('staticPreviewContainer').classList.remove('hidden');
+      img.onload = () => {
+        const canvas = document.getElementById('staticCanvas');
+        canvas.width = img.naturalWidth || img.width;
+        canvas.height = img.naturalHeight || img.height;
+        analyzeStaticImage();
+      };
+    }
+
+    async function analyzeStaticImage() {
+      const img = document.getElementById('staticImg');
+      const canvas = document.getElementById('staticCanvas');
+      const ctx = canvas.getContext('2d');
+
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = img.naturalWidth || 640;
+      tempCanvas.height = img.naturalHeight || 480;
+      const tCtx = tempCanvas.getContext('2d');
+      tCtx.drawImage(img, 0, 0);
+
+      const dataUrl = tempCanvas.toDataURL('image/jpeg', 0.9);
+
+      try {
+        const res = await fetch(`${API_BASE}/api/detect`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: dataUrl })
+        });
+        const data = await res.json();
+        if (data.success && data.detected_objects && data.detected_objects.length > 0) {
+          const primary = data.detected_objects[0];
+          smoothedBox = {
+            ymin: primary.box[0],
+            xmin: primary.box[1],
+            ymax: primary.box[2],
+            xmax: primary.box[3],
+            label: primary.label,
+            color: primary.color,
+            conf: primary.confidence_pct
+          };
+          renderOverlay(ctx, canvas.width, canvas.height);
+          updateTelemetry(data);
+        }
+      } catch (err) {
+        alert("Classification Failed: " + err.message);
+      }
+    }
+  </script>
+
+</body>
+
+</html>
