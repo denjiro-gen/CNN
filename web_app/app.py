@@ -118,7 +118,11 @@ def run_tflite_inference(pil_img):
     """Run MobileNetV2 TFLite inference. Returns raw probs."""
     W, H = MODEL_INPUT_SIZE
     img = pil_img.convert('RGB').resize((W, H), Image.LANCZOS)
-    arr = np.array(img, dtype=np.float32) / 255.0          # [0,1]
+    expected_dtype = tflite_input_details[0]['dtype'] if tflite_input_details else np.float32
+    if expected_dtype == np.uint8:
+        arr = np.array(img, dtype=np.uint8)
+    else:
+        arr = np.array(img, dtype=np.float32) / 255.0
     arr = np.expand_dims(arr, axis=0)                       # (1,128,128,3)
 
     tflite_interpreter.set_tensor(tflite_input_details[0]['index'], arr)

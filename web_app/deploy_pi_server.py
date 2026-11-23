@@ -19,15 +19,19 @@ import mimetypes
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Try loading TFLite
+# Try loading TFLite / LiteRT
+Interpreter = None
 try:
-    from tflite_runtime.interpreter import Interpreter
+    from ai_edge_litert.interpreter import Interpreter
 except ImportError:
     try:
-        from tensorflow.lite.python.interpreter import Interpreter
+        from tflite_runtime.interpreter import Interpreter
     except ImportError:
-        import tensorflow as tf
-        Interpreter = tf.lite.Interpreter
+        try:
+            from tensorflow.lite.python.interpreter import Interpreter
+        except ImportError:
+            import tensorflow as tf
+            Interpreter = tf.lite.Interpreter
 
 MODEL_PATH = os.path.join(CURRENT_DIR, "chamber_model.tflite")
 if not os.path.exists(MODEL_PATH):
@@ -88,9 +92,14 @@ class CameraStream:
         h, w = frame.shape[:2]
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
+        expected_dtype = input_details[0]['dtype'] if input_details else np.float32
+
         # Dual-scale input (full frame + center region)
         resized_full = cv2.resize(rgb, (128, 128))
-        arr_full = np.expand_dims(resized_full.astype(np.float32) / 255.0, 0)
+        if expected_dtype == np.uint8:
+            arr_full = np.expand_dims(resized_full.astype(np.uint8), 0)
+        else:
+            arr_full = np.expand_dims(resized_full.astype(np.float32) / 255.0, 0)
         interpreter.set_tensor(input_details[0]['index'], arr_full)
         interpreter.invoke()
         probs_full = interpreter.get_tensor(output_details[0]['index'])[0]
@@ -98,7 +107,10 @@ class CameraStream:
         # Centered crop
         crop = rgb[int(h*0.1):int(h*0.9), int(w*0.1):int(w*0.9)]
         resized_crop = cv2.resize(crop, (128, 128))
-        arr_crop = np.expand_dims(resized_crop.astype(np.float32) / 255.0, 0)
+        if expected_dtype == np.uint8:
+            arr_crop = np.expand_dims(resized_crop.astype(np.uint8), 0)
+        else:
+            arr_crop = np.expand_dims(resized_crop.astype(np.float32) / 255.0, 0)
         interpreter.set_tensor(input_details[0]['index'], arr_crop)
         interpreter.invoke()
         probs_crop = interpreter.get_tensor(output_details[0]['index'])[0]
