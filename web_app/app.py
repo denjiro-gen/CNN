@@ -37,8 +37,8 @@ tflite_interpreter = None
 tflite_input_details  = None
 tflite_output_details = None
 MODEL_INPUT_SIZE = (128, 128)   # MobileNetV2 trained at 128×128
-MODEL_ARCHITECTURE = "MobileNetV2 TFLite"
-MODEL_ACCURACY = "86.27% balanced"
+MODEL_ARCHITECTURE = "MobileNetV2 TFLite (High-Accuracy Retrained)"
+MODEL_ACCURACY = "91.80% balanced (91.37% Aedes sensitivity)"
 
 for tflite_path in TFLITE_PATHS:
     if os.path.exists(tflite_path):
@@ -449,6 +449,16 @@ def start_server(port=5000):
         httpd.serve_forever()
     except KeyboardInterrupt:
         httpd.server_close()
+
+# ─── Vercel / Serverless Entrypoint Compatibility ─────────────────────────────
+def handler(request=None, *args, **kwargs):
+    return {
+        'statusCode': 200,
+        'headers': {'Content-Type': 'application/json'},
+        'body': '{"status": "online", "message": "Backend API is hosted on Railway: https://cnn-production-58e6236d.up.railway.app"}'
+    }
+
+app = application = handler
 
 if __name__ == '__main__':
     import sys
